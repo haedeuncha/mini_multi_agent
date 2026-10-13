@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>공정 N빵 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* 레이아웃: 위에서 아래로 사람 → 차수(영수증 카드) → 정산 결과. 넓은 화면은 입력|결과 두 칼럼 */
+:root{
+  --bg:#f3f5f8; --paper:#ffffff; --ink:#1b2230; --muted:#667085; --line:#dde2ea;
+  --accent:#2d6be0; --accent-soft:#e6eefc;
+  --food:#d9731f; --food-soft:#fcefe3; --alc:#9a6b00; --alc-soft:#fbf3dc;
+  --eq:#4a5b78; --eq-soft:#eaeef5; --me:#8a3fc4; --me-soft:#f3e9fb;
+  --good:#1f8a5b; --warn:#b54708; --warn-soft:#fef3e7;
+  --display:"Black Han Sans","IBM Plex Sans KR",system-ui,sans-serif;
+  --body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --paper:#1a2029; --ink:#e7ebf2; --muted:#98a2b3; --line:#2c3440;
+  --accent:#6b9cff; --accent-soft:#1d2a44;
+  --food:#f0a060; --food-soft:#33251a; --alc:#e3b93f; --alc-soft:#302814;
+  --eq:#a9b7d0; --eq-soft:#232b38; --me:#c79af0; --me-soft:#2c2138;
+  --good:#4cc48d; --warn:#f5a45d; --warn-soft:#33241a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --paper:#1a2029; --ink:#e7ebf2; --muted:#98a2b3; --line:#2c3440;
+  --accent:#6b9cff; --accent-soft:#1d2a44;
+  --food:#f0a060; --food-soft:#33251a; --alc:#e3b93f; --alc-soft:#302814;
+  --eq:#a9b7d0; --eq-soft:#232b38; --me:#c79af0; --me-soft:#2c2138;
+  --good:#4cc48d; --warn:#f5a45d; --warn-soft:#33241a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px;margin-bottom:20px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,5vw,40px);margin:0;letter-spacing:.5px;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:60ch}
+.grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sticky{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:900px){.sticky{position:static}}
+section.panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+h2{font-size:15px;font-weight:700;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+h2 small{font-weight:400;color:var(--muted);font-size:13px}
+.label{font-size:12px;color:var(--muted);letter-spacing:.04em}
+input,select,button{font:inherit;color:inherit}
+input[type=text],input[type=number],select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{cursor:pointer;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:7px 12px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 8px}
+button.ghost:hover{color:var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);border-radius:999px;padding:3px 4px 3px 12px}
+.chip input{background:transparent;border:0;width:6.5em;padding:3px 0}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.round{border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden}
+.round-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px dashed var(--line)}
+.round-head input.rname{font-weight:700;width:9em}
+.round-body{padding:12px 14px;display:flex;flex-direction:column;gap:14px}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:500}
+td.num,th.num{text-align:right;font-family:var(--mono)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:4px 8px;background:transparent;font-size:13px}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff}
+.toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px}
+.toggle input{width:18px;height:18px;accent-color:var(--accent)}
+.off td:not(:first-child){opacity:.35}
+.item{display:grid;grid-template-columns:minmax(0,1fr) 7.5em auto auto;gap:6px;align-items:center}
+.item .owner{grid-column:1/-1}
+@media (max-width:520px){.item{grid-template-columns:minmax(0,1fr) 7em auto}.item select.kind{grid-column:1/3}}
+.tag{display:inline-block;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:600}
+.k-food{background:var(--food-soft);color:var(--food)} .k-alcohol{background:var(--alc-soft);color:var(--alc)}
+.k-equal{background:var(--eq-soft);color:var(--eq)} .k-personal{background:var(--me-soft);color:var(--me)}
+.total-line{display:flex;justify-content:space-between;font-family:var(--mono);font-size:14px;color:var(--muted)}
+.hero-num{font-family:var(--mono);font-size:26px;font-weight:500}
+.sum-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.sum-grid div{background:var(--bg);border-radius:10px;padding:10px 12px;min-width:0}
+.sum-grid b{display:block;font-family:var(--mono);font-size:17px;font-weight:500;overflow-wrap:anywhere}
+.transfers{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.transfers li{display:flex;justify-content:space-between;gap:8px;background:var(--bg);border-radius:10px;padding:10px 12px}
+.transfers b{font-family:var(--mono);font-weight:500}
+.warn{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px}
+details summary{cursor:pointer;color:var(--accent);font-size:13px}
+.why{font-size:13px;color:var(--muted);margin:6px 0 0 0;padding:0;list-style:none}
+.why li{display:flex;justify-content:space-between;gap:8px;padding:2px 0;border-bottom:1px dotted var(--line)}
+.rules{font-size:13px;color:var(--muted);display:grid;gap:6px}
+.rules p{margin:0}
+textarea{width:100%;min-height:9em;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font:13px/1.6 var(--mono);color:var(--ink);resize:vertical}
+.hint{font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>공정 N빵 계산기</h1>
+      <p class="sub">술 안 마신 사람, 많이 먹은 사람, 1차만 있다 간 사람까지 반영해서 나눠요. 아래는 예시 모임이에요. 이름과 금액을 바꿔서 쓰세요.</p>
+    </div>
+    <div class="row">
+      <label class="label" for="unit">반올림 단위</label>
+      <select id="unit"><option value="1">1원</option><option value="10">10원</option><option value="100" selected>100원</option><option value="1000">1,000원</option></select>
+      <button id="reset" type="button">예시로 되돌리기</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section class="panel">
+        <h2>함께한 사람 <small>이름을 눌러 고칠 수 있어요</small></h2>
+        <div class="chips" id="people"></div>
+        <div class="row" style="margin-top:10px">
+          <input type="text" id="newPerson" placeholder="이름 추가" maxlength="10">
+          <button type="button" id="addPerson">추가</button>
+        </div>
+      </section>
+      <div id="rounds" class="col"></div>
+      <button type="button" id="addRound">＋ 차수 추가 (2차, 3차…)</button>
+      <section class="panel rules">
+        <h2>나누는 규칙</h2>
+        <p><span class="tag k-food">먹은 양</span> 그 차수 참석자가 <b>적게 0.5 · 보통 1 · 많이 1.5</b> 비율로 나눠요.</p>
+        <p><span class="tag k-alcohol">술</span> 그 차수에서 <b>술 마신 사람끼리만</b> 똑같이 나눠요.</p>
+        <p><span class="tag k-equal">다같이</span> 자리값, 기본 안주, 음료처럼 참석자 모두 똑같이 나눠요.</p>
+        <p><span class="tag k-personal">한 사람</span> 혼자 시킨 메뉴는 그 사람이 전부 내요.</p>
+        <p>차수에 빠진 사람은 그 차수 금액을 내지 않아요. 받을 돈은 반올림 단위로 올려서 받고, 남는 돈은 결제한 사람 몫이에요.</p>
+      </section>
+    </div>
+
+    <div class="col sticky">
+      <section class="panel" id="result"></section>
+      <section class="panel">
+        <h2>단톡방에 보낼 정산 문구</h2>
+        <textarea id="share" readonly aria-label="정산 문구"></textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" type="button" id="copy">복사하기</button><span class="hint" id="copyMsg"></span></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+// 정산 계산 순수 함수 (페이지와 테스트에서 같이 사용)
+function computeSplit(state) {
+  const people = state.people;
+  const pname = Object.fromEntries(people.map(p => [p.id, p.name]));
+  const unit = Number(state.unit) || 1;
+  const owe = {};            // owe[pid][rid] = 정확한 금액(소수)
+  const detail = {};         // detail[pid] = [{round, label, kind, amount}]
+  const warnings = [];
+  people.forEach(p => { owe[p.id] = {}; detail[p.id] = []; });
+
+  const add = (pid, r, label, kind, amt) => {
+    if (!(pid in owe)) return;
+    owe[pid][r.id] = (owe[pid][r.id] || 0) + amt;
+    detail[pid].push({ round: r.name, label, kind, amount: amt });
+  };
+
+  for (const r of state.rounds) {
+    const at = r.attend || {};
+    const here = people.filter(p => at[p.id] && at[p.id].here);
+    if (!here.length) { if (r.items.some(i => i.amount > 0)) warnings.push(`${r.name}: 참석자가 없어 계산에서 빠졌어요.`); continue; }
+    for (const it of r.items) {
+      const amt = Number(it.amount) || 0;
+      if (amt <= 0) continue;
+      if (it.kind === "personal") {
+        if (!it.ownerId || !(it.ownerId in owe)) { warnings.push(`${r.name} · ${it.label}: 누가 먹었는지 골라 주세요. 일단 참석자 균등으로 나눴어요.`); here.forEach(p => add(p.id, r, it.label, "equal", amt / here.length)); continue; }
+        add(it.ownerId, r, it.label, "personal", amt);
+      } else if (it.kind === "alcohol") {
+        let drinkers = here.filter(p => at[p.id].drink);
+        if (!drinkers.length) { warnings.push(`${r.name} · ${it.label}: 술 마신 사람이 없어서 참석자 균등으로 나눴어요.`); drinkers = here; }
+        drinkers.forEach(p => add(p.id, r, it.label, "alcohol", amt / drinkers.length));
+      } else if (it.kind === "food") {
+        const w = here.map(p => Number(at[p.id].eat) || 1);
+        const sum = w.reduce((a, b) => a + b, 0);
+        here.forEach((p, i) => add(p.id, r, it.label, "food", amt * w[i] / sum));
+      } else {
+        here.forEach(p => add(p.id, r, it.label, "equal", amt / here.length));
+      }
+    }
+  }
+
+  // 반올림: 사람별 · 차수별 금액을 단위로 올림 (결제자 본인 몫은 올림하지 않음)
+  const roundUp = v => (v <= 0 ? 0 : Math.ceil(v / unit - 1e-9) * unit);
+  const rows = people.map(p => {
+    const perRound = {};
+    let exact = 0, charged = 0;
+    for (const r of state.rounds) {
+      const v = owe[p.id][r.id] || 0;
+      exact += v;
+      const c = r.payerId === p.id ? v : roundUp(v);
+      perRound[r.id] = { exact: v, charged: c };
+      charged += c;
+    }
+    return { id: p.id, name: p.name, perRound, exact, charged };
+  });
+
+  // 송금: 각 차수 결제자에게 보낼 금액 → 서로 주고받는 건 상계
+  const debt = {};
+  for (const r of state.rounds) {
+    if (!r.payerId || !(r.payerId in owe)) { if (r.items.some(i => i.amount > 0)) warnings.push(`${r.name}: 결제한 사람을 골라 주세요.`); continue; }
+    for (const row of rows) {
+      if (row.id === r.payerId) continue;
+      const c = row.perRound[r.id].charged;
+      if (c > 0) {
+        const k = row.id + ">" + r.payerId;
+        debt[k] = (debt[k] || 0) + c;
+      }
+    }
+  }
+  const transfers = [];
+  const seen = new Set();
+  for (const k of Object.keys(debt)) {
+    const [a, b] = k.split(">");
+    const pair = [a, b].sort().join("|");
+    if (seen.has(pair)) continue;
+    seen.add(pair);
+    const net = (debt[a + ">" + b] || 0) - (debt[b + ">" + a] || 0);
+    if (net > 0) transfers.push({ from: a, to: b, amount: net, fromName: pname[a], toName: pname[b] });
+    else if (net < 0) transfers.push({ from: b, to: a, amount: -net, fromName: pname[b], toName: pname[a] });
+  }
+
+  const roundTotals = state.rounds.map(r => ({ id: r.id, name: r.name, total: r.items.reduce((s, i) => s + (Number(i.amount) || 0), 0) }));
+  const grand = roundTotals.reduce((s, r) => s + r.total, 0);
+  const collected = rows.reduce((s, r) => s + r.charged, 0);
+  return { rows, transfers, detail, warnings, roundTotals, grand, surplus: Math.round(collected - grand) };
+}
+
+</script>
+<script>
+const KINDS = { food: "먹은 양", alcohol: "술", equal: "다같이", personal: "한 사람" };
+const EAT = [[0.5, "적게"], [1, "보통"], [1.5, "많이"]];
+const won = v => Math.round(v).toLocaleString("ko-KR") + "원";
+let uid = 100; const nid = p => p + (uid++);
+
+function example() {
+  const P = ["민수", "지영", "서준", "하은", "도윤"].map((n, i) => ({ id: "p" + i, name: n }));
+  const a = (here, drink, eat) => ({ here, drink, eat });
+  return { unit: 100, people: P, rounds: [
+    { id: "r1", name: "1차 삼겹살집", payerId: "p0",
+      attend: { p0: a(true, true, 1), p1: a(true, true, 0.5), p2: a(true, false, 1), p3: a(true, false, 1), p4: a(true, true, 1.5) },
+      items: [
+        { id: "i1", label: "삼겹살 5인분", amount: 64000, kind: "food" },
+        { id: "i2", label: "냉면·공기밥", amount: 18000, kind: "food" },
+        { id: "i3", label: "소주 5병", amount: 25000, kind: "alcohol" },
+        { id: "i4", label: "맥주 2병", amount: 10000, kind: "alcohol" },
+        { id: "i5", label: "사이다", amount: 2000, kind: "personal", ownerId: "p3" } ] },
+    { id: "r2", name: "2차 호프", payerId: "p1",
+      attend: { p0: a(true, true, 1), p1: a(true, true, 1), p2: a(false, false, 1), p3: a(false, false, 1), p4: a(true, true, 1) },
+      items: [
+        { id: "i6", label: "치킨", amount: 22000, kind: "food" },
+        { id: "i7", label: "생맥주 3000cc", amount: 21000, kind: "alcohol" } ] } ] };
+}
+
+let state;
+try { state = JSON.parse(localStorage.getItem("fair-split-v1")) || example(); } catch (e) { state = example(); }
+const save = () => { try { localStorage.setItem("fair-split-v1", JSON.stringify(state)); } catch (e) {} };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ensureAttend = r => state.people.forEach(p => { if (!r.attend[p.id]) r.attend[p.id] = { here: true, drink: true, eat: 1 }; });
+
+function renderPeople() {
+  document.getElementById("people").innerHTML = state.people.map(p =>
+    `<span class="chip"><input type="text" id="pn-${p.id}" data-pid="${p.id}" value="${esc(p.name)}" aria-label="이름"><button class="ghost" type="button" data-delp="${p.id}" aria-label="${esc(p.name)} 빼기">✕</button></span>`).join("");
+}
+
+function renderRounds() {
+  const opts = (sel, blank) => (blank ? `<option value="">${blank}</option>` : "") + state.people.map(p => `<option value="${p.id}"${p.id === sel ? " selected" : ""}>${esc(p.name)}</option>`).join("");
+  document.getElementById("rounds").innerHTML = state.rounds.map(r => {
+    ensureAttend(r);
+    const total = r.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const rows = state.people.map(p => { const a = r.attend[p.id]; return `
+      <tr class="${a.here ? "" : "off"}">
+        <td><label class="toggle"><input type="checkbox" id="h-${r.id}-${p.id}" data-r="${r.id}" data-p="${p.id}" data-f="here"${a.here ? " checked" : ""}>${esc(p.name)}</label></td>
+        <td><label class="toggle"><input type="checkbox" id="d-${r.id}-${p.id}" data-r="${r.id}" data-p="${p.id}" data-f="drink"${a.drink ? " checked" : ""}${a.here ? "" : " disabled"}>술</label></td>
+        <td><span class="seg" role="group" aria-label="먹은 양">${EAT.map(([v, t]) => `<button type="button" data-r="${r.id}" data-p="${p.id}" data-eat="${v}" aria-pressed="${a.eat == v}"${a.here ? "" : " disabled"}>${t}</button>`).join("")}</span></td>
+      </tr>`; }).join("");
+    const items = r.items.map(it => `
+      <div class="item">
+        <input type="text" id="il-${it.id}" data-r="${r.id}" data-i="${it.id}" data-f="label" value="${esc(it.label)}" aria-label="메뉴">
+        <input type="number" id="ia-${it.id}" data-r="${r.id}" data-i="${it.id}" data-f="amount" value="${it.amount}" min="0" step="100" inputmode="numeric" aria-label="금액">
+        <select class="kind" id="ik-${it.id}" data-r="${r.id}" data-i="${it.id}" data-f="kind" aria-label="나누는 방식">${Object.entries(KINDS).map(([k, t]) => `<option value="${k}"${k === it.kind ? " selected" : ""}>${t}</option>`).join("")}</select>
+        <button class="ghost" type="button" data-deli="${it.id}" data-r="${r.id}" aria-label="메뉴 삭제">✕</button>
+        ${it.kind === "personal" ? `<select class="owner" id="io-${it.id}" data-r="${r.id}" data-i="${it.id}" data-f="ownerId" aria-label="누가 먹었나">${opts(it.ownerId, "누가 시켰나요?")}</select>` : ""}
+      </div>`).join("");
+    return `<article class="round">
+      <div class="round-head">
+        <input type="text" class="rname" id="rn-${r.id}" data-r="${r.id}" data-rf="name" value="${esc(r.name)}" aria-label="차수 이름">
+        <label class="label" for="rp-${r.id}">결제한 사람</label>
+        <select id="rp-${r.id}" data-r="${r.id}" data-rf="payerId">${opts(r.payerId, "선택")}</select>
+        ${state.rounds.length > 1 ? `<button class="ghost" type="button" data-delr="${r.id}" style="margin-left:auto">차수 삭제</button>` : ""}
+      </div>
+      <div class="round-body">
+        <div><div class="label" style="margin-bottom:4px">누가 있었나요</div>
+          <div class="tbl-wrap"><table><tbody>${rows}</tbody></table></div></div>
+        <div><div class="label" style="margin-bottom:6px">주문 내역</div>
+          <div class="col" style="gap:8px">${items}</div>
+          <div class="row" style="margin-top:8px;justify-content:space-between">
+            <button type="button" data-addi="${r.id}">＋ 메뉴 추가</button>
+            <span class="total-line">합계&nbsp;<b style="color:var(--ink)">${won(total)}</b></span>
+          </div></div>
+      </div></article>`;
+  }).join("");
+}
+
+function renderResult() {
+  const res = computeSplit(state);
+  const pn = Object.fromEntries(state.people.map(p => [p.id, p.name]));
+  const head = state.rounds.map(r => `<th class="num">${esc(r.name)}</th>`).join("");
+  const body = res.rows.map(row => {
+    const why = res.detail[row.id];
+    return `<tr><td>${esc(row.name)}</td>${state.rounds.map(r => { const c = row.perRound[r.id]; return `<td class="num">${c.exact > 0 ? won(c.charged) : "–"}</td>`; }).join("")}<td class="num"><b>${won(row.charged)}</b></td></tr>
+      <tr><td colspan="${state.rounds.length + 2}" style="border-bottom:1px solid var(--line);padding-top:0">
+        <details><summary>왜 이 금액?</summary><ul class="why">${why.map(d => `<li><span>${esc(d.round)} · ${esc(d.label)} <span class="tag k-${d.kind}">${KINDS[d.kind]}</span></span><span>${won(d.amount)}</span></li>`).join("") || "<li>낼 금액이 없어요</li>"}</ul></details></td></tr>`;
+  }).join("");
+  const tr = res.transfers.length ? res.transfers.map(t => `<li><span>${esc(t.fromName)} → ${esc(t.toName)}</span><b>${won(t.amount)}</b></li>`).join("") : `<li><span>보낼 돈이 없어요</span></li>`;
+  const warns = res.warnings.map(w => `<div class="warn">${esc(w)}</div>`).join("");
+  document.getElementById("result").innerHTML = `
+    <h2>정산 결과</h2>
+    <div class="sum-grid">
+      <div><span class="label">총 결제</span><b>${won(res.grand)}</b></div>
+      <div><span class="label">인원</span><b>${state.people.length}명</b></div>
+      <div><span class="label">반올림 남는 돈</span><b>${won(res.surplus)}</b></div>
+    </div>
+    ${warns}
+    <div class="label" style="margin:10px 0 6px">누가 누구에게 보내나요</div>
+    <ul class="transfers">${tr}</ul>
+    <div class="label" style="margin:16px 0 4px">사람별 부담액</div>
+    <div class="tbl-wrap"><table><thead><tr><th>이름</th>${head}<th class="num">합계</th></tr></thead><tbody>${body}</tbody></table></div>
+    <p class="hint">결제한 사람의 칸은 본인 몫이라 반올림하지 않아요.</p>`;
+
+  const lines = [`[정산] 총 ${won(res.grand)}`];
+  state.rounds.forEach(r => { const t = res.roundTotals.find(x => x.id === r.id); lines.push(`· ${r.name} ${won(t.total)} (결제: ${pn[r.payerId] || "미정"})`); });
+  lines.push("", "보낼 돈");
+  res.transfers.forEach(t => lines.push(`${t.fromName} → ${t.toName} ${won(t.amount)}`));
+  lines.push("", "술은 마신 사람끼리, 음식은 먹은 양대로, 빠진 차수는 제외하고 나눴어요.");
+  document.getElementById("share").value = lines.join("\n");
+}
+
+function renderAll() { document.getElementById("unit").value = String(state.unit); renderPeople(); renderRounds(); renderResult(); save(); }
+const findR = id => state.rounds.find(r => r.id === id);
+
+document.addEventListener("input", e => {
+  const t = e.target, d = t.dataset;
+  if (d.pid) { state.people.find(p => p.id === d.pid).name = t.value; renderRounds(); renderResult(); save(); refocus(t.id); return; }
+  if (d.i && (d.f === "label" || d.f === "amount")) { const it = findR(d.r).items.find(i => i.id === d.i); it[d.f] = d.f === "amount" ? Math.max(0, Number(t.value) || 0) : t.value; renderResult(); save(); updateTotals(); return; }
+  if (d.rf === "name") { findR(d.r).name = t.value; renderResult(); save(); }
+});
+function updateTotals() { renderRoundsKeepFocus(); }
+function renderRoundsKeepFocus() { const id = document.activeElement && document.activeElement.id; const pos = document.activeElement && document.activeElement.selectionStart; renderRounds(); refocus(id, pos); }
+function refocus(id, pos) { if (!id) return; const el = document.getElementById(id); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (e) {} } }
+
+document.addEventListener("change", e => {
+  const t = e.target, d = t.dataset;
+  if (t.id === "unit") { state.unit = Number(t.value); renderResult(); save(); return; }
+  if (d.f === "here" || d.f === "drink") { findR(d.r).attend[d.p][d.f] = t.checked; renderRounds(); renderResult(); save(); return; }
+  if (d.i && (d.f === "kind" || d.f === "ownerId")) { findR(d.r).items.find(i => i.id === d.i)[d.f] = t.value; renderRounds(); renderResult(); save(); return; }
+  if (d.rf === "payerId") { findR(d.r).payerId = t.value; renderResult(); save(); }
+});
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
+  if (d.eat) { findR(d.r).attend[d.p].eat = Number(d.eat); renderRounds(); renderResult(); save(); }
+  else if (d.delp) { if (state.people.length <= 1) return; state.people = state.people.filter(p => p.id !== d.delp); state.rounds.forEach(r => { delete r.attend[d.delp]; if (r.payerId === d.delp) r.payerId = ""; r.items.forEach(i => { if (i.ownerId === d.delp) i.ownerId = ""; }); }); renderAll(); }
+  else if (d.deli) { const r = findR(d.r); r.items = r.items.filter(i => i.id !== d.deli); renderAll(); }
+  else if (d.addi) { findR(d.addi).items.push({ id: nid("i"), label: "", amount: 0, kind: "food" }); renderAll(); }
+  else if (d.delr) { state.rounds = state.rounds.filter(r => r.id !== d.delr); renderAll(); }
+  else if (b.id === "addRound") { const r = { id: nid("r"), name: `${state.rounds.length + 1}차`, payerId: "", attend: {}, items: [{ id: nid("i"), label: "", amount: 0, kind: "food" }] }; ensureAttend(r); state.rounds.push(r); renderAll(); }
+  else if (b.id === "addPerson") addPerson();
+  else if (b.id === "reset") { state = example(); renderAll(); }
+  else if (b.id === "copy") {
+    const ta = document.getElementById("share"), msg = document.getElementById("copyMsg");
+    const done = ok => { msg.textContent = ok ? "복사했어요" : "글자를 길게 눌러 복사해 주세요"; if (!ok) ta.select(); };
+    try { navigator.clipboard.writeText(ta.value).then(() => done(true), () => done(false)); } catch (err) { done(false); }
+  }
+});
+function addPerson() {
+  const inp = document.getElementById("newPerson"); const name = inp.value.trim(); if (!name) return;
+  const p = { id: nid("p"), name }; state.people.push(p);
+  state.rounds.forEach(r => { r.attend[p.id] = { here: true, drink: true, eat: 1 }; });
+  inp.value = ""; renderAll(); document.getElementById("newPerson").focus();
+}
+document.getElementById("newPerson").addEventListener("keydown", e => { if (e.key === "Enter") addPerson(); });
+state.rounds.forEach(r => r.items.forEach(i => { const n = parseInt(String(i.id).slice(1)); if (n >= uid) uid = n + 1; }));
+renderAll();
+</script>
+
+</body>
+</html>

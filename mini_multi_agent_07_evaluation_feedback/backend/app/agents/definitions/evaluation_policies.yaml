@@ -1,0 +1,15 @@
+feedback_loop:
+  max_review_rounds: 5
+  writer_provider: openai
+  evaluator_provider: gemma
+  reviser_provider: openai
+
+retry:
+  max_attempts: 2
+  retryable_errors:
+    - TimeoutError
+    - ConnectionError
+
+quality_gate:
+  minimum_score: 80
+  require_all_mandatory_criteria: true
